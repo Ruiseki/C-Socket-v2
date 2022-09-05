@@ -1,8 +1,11 @@
 #include "client.hpp"
 #include <WinSock2.h>
 #include <string>
-#include <thread>
+#include <vector>
 #include <fstream>
+#include <mutex>
+#include <thread>
+#include <iostream>
 
 Client::Client(int maxConnection, int tailleBuffer, int tailleBufferDonnee) : _maxConnection(maxConnection), bufferSize(tailleBuffer), dataBufferSize(tailleBufferDonnee)
 {
@@ -24,6 +27,7 @@ Client::~Client()
 
 bool Client::listenerInit(int port, std::string protocole)
 {
+    std::cout << "Declation du socket d'ecoute." << std::endl;
     // Déclaration du socket d'écoute
     _sockfdEcoute = protocole == "tcp" ? socket(AF_INET, SOCK_STREAM, IPPROTO_TCP) :
                        protocole == "udp" ? socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP) :
@@ -31,31 +35,130 @@ bool Client::listenerInit(int port, std::string protocole)
 
     if(_sockfdEcoute < 0) return false;
 
+    std::cout << "Declaration addr." << std::endl;
     // Déclaration addr écoute
-    sockaddr_in adresseInternetEcoute;
-    adresseInternetEcoute.sin_addr.s_addr = INADDR_ANY;
-    adresseInternetEcoute.sin_port = htons(port);
-    adresseInternetEcoute.sin_family = AF_INET;
-    memset( &(adresseInternetEcoute.sin_zero), 0, 8 );
+    _adresseInternetEcoute.sin_addr.s_addr = INADDR_ANY;
+    _adresseInternetEcoute.sin_port = htons(port);
+    _adresseInternetEcoute.sin_family = AF_INET;
+    memset( &(_adresseInternetEcoute.sin_zero), 0, 8 );
 
-    if(adresseInternetEcoute.sin_addr.s_addr <= 0) return false;
+    // if(_adresseInternetEcoute.sin_addr.s_addr <= 0) return false;
 
+    std::cout << "Binding." << std::endl;
     // binding
-    if( bind(_sockfdEcoute, (sockaddr*)&adresseInternetEcoute, sizeof(adresseInternetEcoute)) < 0 ) return false;
+    if( bind(_sockfdEcoute, (sockaddr*)&_adresseInternetEcoute, sizeof(_adresseInternetEcoute)) < 0 ) return false;
 
+    std::cout << "Listening." << std::endl;
     // le socket écoute un port de la machine
     if( listen(_sockfdEcoute, _maxConnection) < 0) return false;
-
-    // réinitialisation
-    FD_ZERO(&_fdset);
-
-    // ajout d'un file descriptor dans la liste
-    FD_SET(_sockfdEcoute, &_fdset);
+    return true;
 }
 
-void Client::listener(int port, std::string protocole)
+bool Client::listener(int port, std::string protocole, std::mutex* locker, bool* stop, std::vector<std::string>* incomingDataQueue)
 {
-    this->listenerInit(port, protocole);
+    std::cout << "Initialisation ..." << std::endl;
+    if( !this->listenerInit(port, protocole) )
+    {
+        std::cout << "Error : cant init listener !" << std::endl;
+        *stop = true;
+        return false;
+    }
+    std::cout << "Initialisation finished" << std::endl;
+    std::cout << "Listener ready" << std::endl;
+    std::cout << "Listening ..." << std::endl;
+
+    while(!*stop)
+    {
+        FD_ZERO(&_fdset);
+        FD_SET(_sockfdEcoute, &_fdset);
+
+        int max_socket = _sockfdEcoute;
+
+        for(int i(0); i < _maxConnection; i++)
+        {
+            if(!_connections[i].estLibre)
+            {
+                if(_connections[i].sockfd > max_socket) max_socket = _connections[i].sockfd;
+                FD_SET(_connections[i].sockfd, &_fdset);
+            }
+        }
+
+        struct timeval tv;
+        tv.tv_sec = 1;
+        tv.tv_usec = 0;
+
+        select(max_socket + 1, &_fdset, NULL, NULL, &tv);
+
+        if(FD_ISSET(_sockfdEcoute, &_fdset))
+        {
+            std::cout << "Oh un truc" << std::endl;
+            int adresseLongueur = sizeof(_adresseInternetEcoute);
+            int new_socket = accept(_sockfdEcoute, (sockaddr*)&_adresseInternetEcoute, &adresseLongueur);
+            std::cout << "Le truc est toujours vivant..." << std::endl;
+            
+            // trouve un index libre dans _connections.
+            // La case est libre lorsque la propriété isFree est true.
+            int caseLibre = -1;
+            for(int i(0); i < _maxConnection; i++)
+            {
+                if(_connections[i].estLibre)
+                {
+                    caseLibre = i;
+                    break;
+                }
+            }
+            if(caseLibre == -1)
+            {
+                shutdown(new_socket, 2);
+            }
+            else
+            {
+                _connections[caseLibre].estLibre = false;
+                _connections[caseLibre].sockfd = new_socket;
+            }
+            std::cout << "La nouvelle case : " << caseLibre << std::endl;
+        }
+
+        for(int i(0); i < _maxConnection; i++)
+        {
+            if(FD_ISSET(_connections[i].sockfd, &_fdset))
+            {
+                buffer = new char[bufferSize];
+                int bytesNumber = recv(_connections[i].sockfd, buffer, bufferSize, 0);
+
+                if(bytesNumber == 0)
+                {
+                    _connections[i].estLibre = true;
+                }
+                else if(bytesNumber > 0)
+                {
+                    buffer[bytesNumber] = '\0';
+                    locker->lock();
+                    incomingDataQueue->push_back(buffer);
+                    locker->unlock();
+                }
+                else
+                {
+                    _connections[i].estLibre = true;
+                    _connections[i].sockfd = 0;
+                }
+
+                delete[] buffer; buffer = 0;
+            }
+        }
+    }
+    std::cout << "Exiting listener" << std::endl;
+    return true;
+}
+
+std::thread Client::listenerSpawnThread(int port, std::string protocole, std::mutex* locker, bool* stop, std::vector<std::string>* incomingDataQueue)
+{
+    return std::thread(&listener, this, port, protocole, locker, stop, incomingDataQueue);
+}
+
+void Client::test()
+{
+    Sleep(5000);
 }
 
 bool Client::initWsa()

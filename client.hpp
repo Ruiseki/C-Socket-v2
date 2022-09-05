@@ -3,8 +3,10 @@
 
 #include <WinSock2.h>
 #include <string>
-#include <thread>
 #include <fstream>
+#include <vector>
+#include <mutex>
+#include <thread>
 
 class Client
 {
@@ -31,22 +33,20 @@ public:
      */
     int connection(std::string adresseCible, int port, std::string protocole);
     
+
+    /*
+     *
+     */
+    std::thread listenerSpawnThread(int port, std::string protocole, std::mutex* locker, bool* stop, std::vector<std::string>* incomingDataQueue);
+
+    void test();
+
     /*
      * @brief Termine une connection existante. 
      * @param identifiant de la connection (voir connection() )
      * @return false si la connection n'existe pas, true si la connection existe
      */
     bool terminerConnection(int idConnection);
-
-    /*
-     * @brief Initialise 
-     */
-    bool listenerInit(int port, std::string protocole); // <- permettre de foutre ça dans un tableau parce qu'il peut y avoir plusieurs listeners.
-
-    /*
-     *
-     */
-    void listener(int port, std::string protocole);
 
     /*
      * @brief Envoi une chaîne de caractère à un connection
@@ -104,6 +104,7 @@ private:
      * @return false pour un echec d'initialisation, true pour une réussite
      */
     bool initWsa();
+
     /*
      * @brief Initialisation de la structure sockaddr_in de WinSock2.h
      * @param addr Adresse internet de la cible. Trouvable dans _connections[].adresseInternet
@@ -112,12 +113,23 @@ private:
      * @return False pour un echec d'initialisation, true pour une réussite
      */
     bool initAdresseInternet(sockaddr_in &addr, std::string adresseCible, int port);
+
     /*
      * @brief Initialisation du socket utilisé pour la communication
      * @param protocole Protocole utilisé. tcp / udp
      * @return False pour un echec d'initialisation, true pour une réussite
      */
     bool initSocket(std::string protocole, int &sockfd);
+
+    /*
+     *
+     */
+    bool listenerInit(int port, std::string protocole);
+
+    /*
+     *
+     */
+    bool listener(int port, std::string protocole, std::mutex* locker, bool* stop, std::vector<std::string>* incomingDataQueue);
     
     // Le nombre maximal de connection simultané
     int const _maxConnection;
@@ -126,7 +138,7 @@ private:
     {
         sockaddr_in adressesInternet;
         bool estLibre = true;
-        int sockfd;
+        int sockfd = 0;
     };
     // Tableau contenant les connections
     _connection* _connections;
@@ -137,6 +149,7 @@ private:
     struct fd_set _fdset;
     // socket d'écoute du client
     int _sockfdEcoute;
+    sockaddr_in _adresseInternetEcoute;
 };
 
 #endif
