@@ -2,12 +2,59 @@
 #include <vector>
 #include <string>
 #include <thread>
+#include <fstream>
 
 #include "WinSock2.h"
 #include "windows.h"
 #include "client.hpp"
 
 using namespace std;
+
+struct Config
+{
+    string addr;
+    int portTalk;
+    int portListen;
+};
+
+void updateConfigFile(Config conf)
+{
+    ofstream configFile("./config.conf");
+    if(configFile)
+    {
+        configFile << conf.addr << endl;
+        configFile << conf.portTalk << endl;
+        configFile << conf.portListen;
+    }
+}
+
+struct Config configFile()
+{
+    Config conf;
+    ifstream configFile("./config.conf");
+
+    if(configFile)
+    {
+        string line;
+        try
+        {
+            getline(configFile, line); conf.addr = line;
+            getline(configFile, line); conf.portTalk = stoi(line);
+            getline(configFile, line); conf.portListen = stoi(line);
+        }
+        catch(const std::exception& e) { }
+        
+    }
+    else
+    {
+        conf.addr = "127.0.0.1";
+        conf.portTalk = 55000;
+        conf.portListen = 55000;
+        updateConfigFile(conf);
+    }
+
+    return conf;
+}
 
 void affichage(mutex* locker, string ip, bool* stop, vector<string>* dataQueue)
 {
@@ -74,20 +121,19 @@ void connection(Client* client, string ip, int portListen, int port)
 int main()
 {
     Client client(5, 1024, 2048);
+    Config conf = configFile();
     bool exit = false;
-    int port = 55000;
-    int portListen = 55000;
-    string ip = "127.0.0.1";
     int selection;
 
     do
     {
+        updateConfigFile(conf);
         system("cls");
         cout << "DESTINATION :" << endl;
-        cout << "Adresse : " << ip << endl;
-        cout << "Port : " << port << endl << endl;
+        cout << "Adresse : " << conf.addr << endl;
+        cout << "Port : " << conf.portTalk << endl << endl;
         cout << "HOTE :" << endl;
-        cout << "Port d'ecoute : " << portListen << endl;
+        cout << "Port d'ecoute : " << conf.portListen << endl;
         cout << endl;
         cout << "1: changer IP" << endl;
         cout << "2: changer port" << endl;
@@ -102,20 +148,20 @@ int main()
         case 1:
             system("cls");
             cout << "Nouvelle adresse : ";
-            cin >> ip;
+            cin >> conf.addr;
             break;
         case 2:
             system("cls");
             cout << "Nouveau port : ";
-            cin >> port;
+            cin >> conf.portTalk;
             break;
         case 3:
             system("cls");
             cout << "Nouveau port : ";
-            cin >> portListen;
+            cin >> conf.portListen;
             break;
         case 4:
-            connection(&client, ip, portListen, port);
+            connection(&client, conf.addr, conf.portListen, conf.portTalk);
             break;
         case 5:
             system("cls");
