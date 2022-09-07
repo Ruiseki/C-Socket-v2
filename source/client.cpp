@@ -21,80 +21,91 @@ Client::Client() : Client(4, 128, 1024)
 
 Client::~Client()
 {
+    WSACleanup();
     delete[] _connections;
+
     _connections = 0;
 }
 
 bool Client::listenerInit(int port, std::string protocole)
 {
-    std::cout << "Declation du socket d'ecoute." << std::endl;
     // Déclaration du socket d'écoute
+    // AF_INET est utilisé pour les protocole TCP et UDP
     _sockfdEcoute = protocole == "tcp" ? socket(AF_INET, SOCK_STREAM, IPPROTO_TCP) :
                        protocole == "udp" ? socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP) :
                        -1;
 
     if(_sockfdEcoute < 0) return false;
 
-    std::cout << "Declaration addr." << std::endl;
     // Déclaration addr écoute
-    _adresseInternetEcoute.sin_addr.s_addr = INADDR_ANY;
-    _adresseInternetEcoute.sin_port = htons(port);
-    _adresseInternetEcoute.sin_family = AF_INET;
-    memset( &(_adresseInternetEcoute.sin_zero), 0, 8 );
+    _adresseSocketEcoute.sin_addr.s_addr = INADDR_ANY;
+    _adresseSocketEcoute.sin_port = htons(port);
+    _adresseSocketEcoute.sin_family = AF_INET; // AF_INET est utilisé pour les protocole TCP et UDP
+    memset( &(_adresseSocketEcoute.sin_zero), 0, 8 );
 
-    // if(_adresseInternetEcoute.sin_addr.s_addr <= 0) return false;
-
-    std::cout << "Binding." << std::endl;
     // binding
-    if( bind(_sockfdEcoute, (sockaddr*)&_adresseInternetEcoute, sizeof(_adresseInternetEcoute)) < 0 ) return false;
+    int errorCode = bind(_sockfdEcoute, (sockaddr*)&_adresseSocketEcoute, sizeof(_adresseSocketEcoute));
+    if( errorCode == SOCKET_ERROR )
+    {
+        std::cout << "BINDING ERROR : " << std::endl << WSAGetLastError() << std::endl;
+        return false;
+    }
 
-    std::cout << "Listening." << std::endl;
     // le socket écoute un port de la machine
-    if( listen(_sockfdEcoute, _maxConnection) < 0) return false;
+    if( listen(_sockfdEcoute, _maxConnection) < 0)
+    {
+        std::cout << "LISTEN ERROR" << std::endl;
+        return false;
+    }
     return true;
 }
 
-bool Client::listener(int port, std::string protocole, std::mutex* locker, bool* stop, std::vector<std::string>* incomingDataQueue)
+void Client::listener(int port, std::string protocole, std::mutex* locker, bool* stop, std::vector<std::string>* dataQueue)
 {
-    std::cout << "Initialisation ..." << std::endl;
+    // Initialisation des variable, bind() puis listen().
     if( !this->listenerInit(port, protocole) )
     {
         std::cout << "Error : cant init listener !" << std::endl;
+        std::this_thread::sleep_for(std::chrono::seconds(3));
         *stop = true;
-        return false;
+        return;
     }
-    std::cout << "Initialisation finished" << std::endl;
-    std::cout << "Listener ready" << std::endl;
-    std::cout << "Listening ..." << std::endl;
 
     while(!*stop)
     {
+        // remise a zéro de la liste de file descriptor
         FD_ZERO(&_fdset);
+
+        // ajout du socket serveur
         FD_SET(_sockfdEcoute, &_fdset);
 
+        // max_socket est utilisé pour select(), le premier argument étant le socket avec la valeur la plus élevé + 1
         int max_socket = _sockfdEcoute;
 
+        // On aimerait ajouter à la liste de file descriptor tous les socket des clients connecter
         for(int i(0); i < _maxConnection; i++)
         {
             if(!_connections[i].estLibre)
             {
                 if(_connections[i].sockfd > max_socket) max_socket = _connections[i].sockfd;
+                // ajout d'un socket client
                 FD_SET(_connections[i].sockfd, &_fdset);
             }
         }
 
+        // variable initilisé pour le timeout de select();
         struct timeval tv;
         tv.tv_sec = 1;
         tv.tv_usec = 0;
 
+        // select() permet au programme de manipulé plusieurs file descriptor en même temps. En l'occurence, ceux du serveur et des autre clients
         select(max_socket + 1, &_fdset, NULL, NULL, &tv);
 
+        // On regarde si il y a de l'activité sur le socket seveur. Si oui, c'est forcément une demande de connection entrante
         if(FD_ISSET(_sockfdEcoute, &_fdset))
         {
-            std::cout << "Oh un truc" << std::endl;
-            int adresseLongueur = sizeof(_adresseInternetEcoute);
-            int new_socket = accept(_sockfdEcoute, (sockaddr*)&_adresseInternetEcoute, &adresseLongueur);
-            std::cout << "Le truc est toujours vivant..." << std::endl;
+            int adresseLongueur = sizeof(_adresseSocketEcoute);
+            int new_socket = accept(_sockfdEcoute, (sockaddr*)&_adresseSocketEcoute, &adresseLongueur);
             
             // trouve un index libre dans _connections.
             // La case est libre lorsque la propriété isFree est true.
@@ -107,68 +118,71 @@ bool Client::listener(int port, std::string protocole, std::mutex* locker, bool*
                     break;
                 }
             }
+            // Le serveur est plein
             if(caseLibre == -1)
             {
                 shutdown(new_socket, 2);
             }
+            // Place libre trouver, on sauvegarde la connection
             else
             {
                 _connections[caseLibre].estLibre = false;
                 _connections[caseLibre].sockfd = new_socket;
             }
-            std::cout << "La nouvelle case : " << caseLibre << std::endl;
         }
 
+        // Pour chaque élements de la variable permettant de sauvegarder les connections...
         for(int i(0); i < _maxConnection; i++)
         {
-            if(FD_ISSET(_connections[i].sockfd, &_fdset))
+            // On regarde si un client est attribué, puis on regarde si son socket a reçus quelque chose
+            if(!_connections[i].estLibre && FD_ISSET(_connections[i].sockfd, &_fdset))
             {
+                // allocation du buffer
                 buffer = new char[bufferSize];
                 int bytesNumber = recv(_connections[i].sockfd, buffer, bufferSize, 0);
 
+                // Le client se déconnecte
                 if(bytesNumber == 0)
                 {
                     _connections[i].estLibre = true;
+                    _connections[i].sockfd = 0;
                 }
+                // Reception des données
                 else if(bytesNumber > 0)
                 {
                     buffer[bytesNumber] = '\0';
+                    // les données sont envoyées dans la file d'attente
                     locker->lock();
-                    incomingDataQueue->push_back(buffer);
+                    dataQueue->push_back((std::string)buffer);
                     locker->unlock();
                 }
+                // Quelque chose ne se passe pas comme prévus
                 else
                 {
                     _connections[i].estLibre = true;
                     _connections[i].sockfd = 0;
                 }
 
+                // déallocation du buffer
                 delete[] buffer; buffer = 0;
             }
         }
     }
-    std::cout << "Exiting listener" << std::endl;
-    return true;
+    closesocket(_sockfdEcoute);
 }
 
-std::thread Client::listenerSpawnThread(int port, std::string protocole, std::mutex* locker, bool* stop, std::vector<std::string>* incomingDataQueue)
+std::thread Client::listenerSpawnThread(int port, std::string protocole, std::mutex* locker, bool* stop, std::vector<std::string>* dataQueue)
 {
-    return std::thread(&listener, this, port, protocole, locker, stop, incomingDataQueue);
-}
-
-void Client::test()
-{
-    Sleep(5000);
+    return std::thread(&listener, this, port, protocole, locker, stop, dataQueue);
 }
 
 bool Client::initWsa()
 {
-    WSADATA ws;
-    if( WSAStartup(MAKEWORD(2, 2), &ws) < 0 ) return false;
+    if( WSAStartup(MAKEWORD(2, 2), &wsaData) < 0 ) return false;
     return true;
 }
 
-bool Client::initAdresseInternet(sockaddr_in &addr, std::string adresseCible, int port)
+bool Client::initAdresseSocket(sockaddr_in &addr, std::string adresseCible, int port)
 {
     addr.sin_port = htons(port);
     addr.sin_family = AF_INET;   // AF_INET est utilisé pour les protocole TCP et UDP
@@ -207,11 +221,11 @@ int Client::connection(std::string adresseServeur, int port, std::string protoco
     _connections[caseLibre].estLibre = false;
 
     // configuration des élements de WinSock2.h
-    if( !this->initAdresseInternet(_connections[caseLibre].adressesInternet, adresseServeur, port) ) return -2;
+    if( !this->initAdresseSocket(_connections[caseLibre].adresseSocket, adresseServeur, port) ) return -2;
     if( !this->initSocket(protocole, _connections[caseLibre].sockfd) ) return -3;
 
     // connection à la cible
-    if( connect(_connections[caseLibre].sockfd, (sockaddr*)&_connections[caseLibre].adressesInternet, sizeof(_connections[caseLibre].adressesInternet)) < 0)
+    if( connect(_connections[caseLibre].sockfd, (sockaddr*)&_connections[caseLibre].adresseSocket, sizeof(_connections[caseLibre].adresseSocket)) < 0)
     return -1;
 
     return caseLibre;
@@ -223,6 +237,7 @@ bool Client::terminerConnection(int idConnection)
     else if(!_connections[idConnection].estLibre)
     {
         shutdown(_connections[idConnection].sockfd, 2);
+        closesocket(_connections[idConnection].sockfd);
         _connections[idConnection].estLibre = true;
         return true;
     }

@@ -35,11 +35,15 @@ public:
     
 
     /*
-     *
+     * @brief Permet d'écouter sur un port. Les données reçus seront pusher dans le vector dataQueue. Mettre le boolean stop a true permet de stoper le thread
+     * @param port Port d'écoute
+     * @param protocole Protocole utilisé. tcp / udp
+     * @param locker std::mutex permettant de bloquer une valeur partagé pour la lire et l'écrire sans quel ne soit modifié en même temps
+     * @param stop bool pour stoper le thread
+     * @param dataQueue Les donnée reçus sur ce port serons stocker dans ce vector
+     * @return Le thread alors invoqué.
      */
-    std::thread listenerSpawnThread(int port, std::string protocole, std::mutex* locker, bool* stop, std::vector<std::string>* incomingDataQueue);
-
-    void test();
+    std::thread listenerSpawnThread(int port, std::string protocole, std::mutex* locker, bool* stop, std::vector<std::string>* dataQueue);
 
     /*
      * @brief Termine une connection existante. 
@@ -107,12 +111,12 @@ private:
 
     /*
      * @brief Initialisation de la structure sockaddr_in de WinSock2.h
-     * @param addr Adresse internet de la cible. Trouvable dans _connections[].adresseInternet
+     * @param addr Adresse internet de la cible. Trouvable dans _connections[].adresseSocket
      * @param adresseCible Adresse IP de la destination
      * @param port Port utilisé pour la communication
      * @return False pour un echec d'initialisation, true pour une réussite
      */
-    bool initAdresseInternet(sockaddr_in &addr, std::string adresseCible, int port);
+    bool initAdresseSocket(sockaddr_in &addr, std::string adresseCible, int port);
 
     /*
      * @brief Initialisation du socket utilisé pour la communication
@@ -122,21 +126,22 @@ private:
     bool initSocket(std::string protocole, int &sockfd);
 
     /*
-     *
+     * @brief Initialise les variable nessessaire pour l'écoute. Comme _socketEcoute et _adresseSocketEcoute, bind() et listen().
+     * @return false en cas d'erreur d'initialisation
      */
     bool listenerInit(int port, std::string protocole);
 
     /*
-     *
+     * @brief le listener en lui même. Voir Client::listenerSpawnThread
      */
-    bool listener(int port, std::string protocole, std::mutex* locker, bool* stop, std::vector<std::string>* incomingDataQueue);
+    void listener(int port, std::string protocole, std::mutex* locker, bool* stop, std::vector<std::string>* incomingDataQueue);
     
     // Le nombre maximal de connection simultané
     int const _maxConnection;
     // Structure définissant une connection
     struct _connection
     {
-        sockaddr_in adressesInternet;
+        sockaddr_in adresseSocket;
         bool estLibre = true;
         int sockfd = 0;
     };
@@ -144,12 +149,13 @@ private:
     _connection* _connections;
     char* buffer, dataBuffer;
     int bufferSize, dataBufferSize;
-
+    
+    WSADATA wsaData;
     // fdset est une liste de file descriptor (au sens littérale du terme). Il permet de manipulé ces derniers
     struct fd_set _fdset;
     // socket d'écoute du client
     int _sockfdEcoute;
-    sockaddr_in _adresseInternetEcoute;
+    sockaddr_in _adresseSocketEcoute;
 };
 
 #endif
