@@ -9,7 +9,6 @@
 
 Client::Client(int maxConnection, int tailleBuffer, int tailleBufferDonnee) : _maxConnection(maxConnection), bufferSize(tailleBuffer), dataBufferSize(tailleBufferDonnee)
 {
-    if( !this->initWsa() ) this->~Client();
     _connections = new _connection[_maxConnection];
 }
 
@@ -21,27 +20,16 @@ Client::Client() : Client(4, 128, 1024)
 
 Client::~Client()
 {
-    WSACleanup();
     delete[] _connections;
-
-    _connections = 0;
 }
 
 bool Client::listenerInit(int port, std::string protocole)
 {
+    if( !this->initWsa() ) return false;
     // Déclaration du socket d'écoute
-    // AF_INET est utilisé pour les protocole TCP et UDP
-    _sockfdEcoute = protocole == "tcp" ? socket(AF_INET, SOCK_STREAM, IPPROTO_TCP) :
-                       protocole == "udp" ? socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP) :
-                       -1;
-
-    if(_sockfdEcoute < 0) return false;
-
+    if( !this->initSocket(protocole, _sockfdEcoute) ) return false;
     // Déclaration addr écoute
-    _adresseSocketEcoute.sin_addr.s_addr = INADDR_ANY;
-    _adresseSocketEcoute.sin_port = htons(port);
-    _adresseSocketEcoute.sin_family = AF_INET; // AF_INET est utilisé pour les protocole TCP et UDP
-    memset( &(_adresseSocketEcoute.sin_zero), 0, 8 );
+    if( !this->initAdresseSocket(_adresseSocketEcoute, "aucune", port) ) return false;
 
     // binding
     int errorCode = bind(_sockfdEcoute, (sockaddr*)&_adresseSocketEcoute, sizeof(_adresseSocketEcoute));
@@ -65,7 +53,7 @@ void Client::listener(int port, std::string protocole, std::mutex* locker, bool*
     // Initialisation des variable, bind() puis listen().
     if( !this->listenerInit(port, protocole) )
     {
-        std::cout << "Error : cant init listener !" << std::endl;
+        this->wlog("--- LISTENER INIT FAILED");
         std::this_thread::sleep_for(std::chrono::seconds(3));
         *stop = true;
         return;
@@ -153,7 +141,7 @@ void Client::listener(int port, std::string protocole, std::mutex* locker, bool*
                     buffer[bytesNumber] = '\0';
                     // les données sont envoyées dans la file d'attente
                     locker->lock();
-                    dataQueue->push_back((std::string)buffer);
+                    dataQueue->push_back( (std::string)buffer );
                     locker->unlock();
                 }
                 // Quelque chose ne se passe pas comme prévus
@@ -169,44 +157,75 @@ void Client::listener(int port, std::string protocole, std::mutex* locker, bool*
         }
     }
     closesocket(_sockfdEcoute);
+    WSACleanup();
 }
 
 std::thread Client::listenerSpawnThread(int port, std::string protocole, std::mutex* locker, bool* stop, std::vector<std::string>* dataQueue)
 {
+    this->wlog("---- SPAWNING LISTENER THREAD");
     return std::thread(&listener, this, port, protocole, locker, stop, dataQueue);
 }
 
 bool Client::initWsa()
 {
-    if( WSAStartup(MAKEWORD(2, 2), &wsaData) < 0 ) return false;
+    this->wlog("---- WSA");
+    if( WSAStartup(MAKEWORD(2, 2), &wsaData) < 0 )
+    {
+        this->wlog("--- ERROR : " + WSAGetLastError());
+        return false;
+    }
+    this->wlog("CHECK");
     return true;
 }
 
 bool Client::initAdresseSocket(sockaddr_in &addr, std::string adresseCible, int port)
 {
+    this->wlog("---- ADDR");
     addr.sin_port = htons(port);
     addr.sin_family = AF_INET;   // AF_INET est utilisé pour les protocole TCP et UDP
-    memset( &(addr.sin_zero), 0, 8 );
-    addr.sin_addr.s_addr = inet_addr( adresseCible.c_str() ); // Indique l'adresse du serveur
 
-    if(addr.sin_addr.s_addr <= 0) return false;
+    // CLIENT
+    if(adresseCible != "aucune")
+    {
+        addr.sin_addr.s_addr = inet_addr( adresseCible.c_str() ); // Indique l'adresse du serveur
+        if(addr.sin_addr.s_addr <= 0)
+        {
+            this->wlog("ERROR : " + WSAGetLastError());
+            return false;
+        }
+    }
+    // SERVEUR
+    else
+    {
+        addr.sin_addr.s_addr = INADDR_ANY;
+    }
+
+    memset( &(addr.sin_zero), 0, 8 );
+
+    this->wlog("CHECK");
     return true;
 }
 
 bool Client::initSocket(std::string protocole, int &sockfd)
 {
+    this->wlog("---- SOCKET");
     sockfd= protocole == "tcp" ? socket(AF_INET, SOCK_STREAM, IPPROTO_TCP) :
             protocole == "udp" ? socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP) :
             -1;
 
-    if(sockfd < 0) return false;
+    if(sockfd < 0)
+    {
+        this->wlog("ERROR : " + WSAGetLastError());
+        return false;
+    }
+    this->wlog("CHECK");
     return true;
 }
 
 int Client::connection(std::string adresseServeur, int port, std::string protocole)
 {
     // trouve un index libre dans _connections.
-    // La case est libre lorsque la propriété isFree est true.
+    // La case est libre lorsque la propriété estLibre est true.
     int caseLibre;
     for(int i(0); i < _maxConnection; i++)
     {
@@ -216,32 +235,63 @@ int Client::connection(std::string adresseServeur, int port, std::string protoco
             break;
         }
 
-        if(i == _maxConnection - 1) return -4;
+        if(i == _maxConnection - 1) return -5;
     }
     _connections[caseLibre].estLibre = false;
-
+    
+    int codeErreur = 0;
     // configuration des élements de WinSock2.h
-    if( !this->initAdresseSocket(_connections[caseLibre].adresseSocket, adresseServeur, port) ) return -2;
-    if( !this->initSocket(protocole, _connections[caseLibre].sockfd) ) return -3;
+    if( !this->initWsa() ) codeErreur = -4;
+    if( codeErreur == 0 && !this->initAdresseSocket(_connections[caseLibre].adresseSocket, adresseServeur, port) ) codeErreur = -2;
+    if( codeErreur == 0 && !this->initSocket(protocole, _connections[caseLibre].sockfd) ) codeErreur = -3;
 
     // connection à la cible
-    if( connect(_connections[caseLibre].sockfd, (sockaddr*)&_connections[caseLibre].adresseSocket, sizeof(_connections[caseLibre].adresseSocket)) < 0)
-    return -1;
+    if( codeErreur == 0)
+    {
+        this->wlog("---- CONNECTING...");
+        if( connect(_connections[caseLibre].sockfd, (sockaddr*)&_connections[caseLibre].adresseSocket, sizeof(_connections[caseLibre].adresseSocket)) < 0)
+            codeErreur = -1;
+        else this->wlog("DONE");
+    }
 
-    return caseLibre;
+    if(codeErreur == 0) return caseLibre;
+    else
+    {
+        WSACleanup();
+        if(codeErreur == -1)
+        {
+            closesocket(_connections[caseLibre].sockfd);
+            this->wlog("CONNECTION TIMEOUT");
+        }
+
+        _connections[caseLibre].estLibre = true;
+        return codeErreur;
+    }
 }
 
 bool Client::terminerConnection(int idConnection)
 {
-    if(idConnection < 0 || idConnection > _maxConnection) return false;
+    this->wlog("---- DISCTONNECTING...");
+
+    if(idConnection < 0 || idConnection > _maxConnection)
+    {
+        this->wlog("ERROR : WRONG CONNECTION ID");
+        return false;
+    }
     else if(!_connections[idConnection].estLibre)
     {
         shutdown(_connections[idConnection].sockfd, 2);
         closesocket(_connections[idConnection].sockfd);
         _connections[idConnection].estLibre = true;
+        WSACleanup();
+        this->wlog("DONE");
         return true;
     }
-    else return false;
+    else
+    {
+        this->wlog("ERROR : INCOHERANCE");
+        return false;
+    }
 }
 
 void Client::envoyerText(int idConnection, std::string text)
@@ -262,4 +312,49 @@ std::string Client::recevoirText(int idConnection, int tempsMax)
 std::string Client::recevoirText(int idConnection)
 {
     return this->recevoirText(idConnection, 0);
+}
+
+
+/* ------------------------------------------------------------------------------------
+
+                    PROTOCOLE POUR L'ENVOIE ET LA RECEPTION DE DATA
+
+                    - envoie de la taille du buffer pour les données
+                    - envoie de la taille du fichier
+                    ( calcule du nombre de paquets de chaque côté )
+                    - envoie des donnée
+
+------------------------------------------------------------------------------------ */
+
+
+bool Client::envoyerFichier(int idConnection, std::string chemin)
+{
+    /* std::ifstream lectureRessource(chemin.c_str(), std::ios::binary);
+
+    if(!lectureRessource) return false;
+
+    lectureRessource.seekg(std::ios::end);
+    int tailleRessource = lectureRessource.tellg();
+    lectureRessource.seekg(std::ios::beg);
+
+    buffer = new char(bufferSize);
+    int socketRecepteur = _connections[idConnection];
+
+    // envoie de la taille du fichier
+    send(socketRecepteur, , bufferSize, 0);
+    recv(socketRecepteur, buffer, bufferSize, 0);
+
+    delete buffer; */
+    return true;
+}
+
+bool Client::recevoirFichier(int idConnection, std::string chemin)
+{
+    return true;
+}
+
+void Client::wlog(std::string logMessage)
+{
+    std::ofstream wlog("./log.txt", std::ios::app);
+    wlog << logMessage << std::endl;
 }

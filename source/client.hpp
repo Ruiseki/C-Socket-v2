@@ -7,6 +7,7 @@
 #include <vector>
 #include <mutex>
 #include <thread>
+#include <fstream>
 
 class Client
 {
@@ -20,6 +21,7 @@ public:
     Client(int maxConnection);
     Client();
     ~Client();
+
     /* 
      * @brief Connection avec un client ou un serveur
      * @param adresseCible Adresse IP de la destination
@@ -28,12 +30,12 @@ public:
      * @return Int. -1 timeout, 
      * -2 erreur lors de l'initialisation de sockaddr_in, 
      * -3 erreur lors de l'initialisation du socket, 
-     * -4 quantité maximum de connections simulatées atteinte.
-     * Sinon, l'identifiant de la connection crée (entier positif non nul).
+     * -4 erreur lors de l'initialisation des WSA, 
+     * -5 quantité maximum de connections simulatées atteinte.
+     * Sinon, l'identifiant de la connection crée (entier supérieur ou égale à zéro).
      */
     int connection(std::string adresseCible, int port, std::string protocole);
     
-
     /*
      * @brief Permet d'écouter sur un port. Les données reçus seront pusher dans le vector dataQueue. Mettre le boolean stop a true permet de stoper le thread
      * @param port Port d'écoute
@@ -83,7 +85,8 @@ public:
      * @param chemin le chemin du fichier a envoyer
      * @return void
      */
-    void envoyerFichier(int idConnection, std::string chemin);
+    bool envoyerFichier(int idConnection, std::string chemin);
+
     /*
      * @todo coder la méthode
      * @brief Recoie un fichiers d'un cible
@@ -91,16 +94,7 @@ public:
      * @param chemin le chemin du fichier a enregistrer
      * @return void
      */
-    void recevoirFichier(int idConnection, std::string chemin);
-    /*
-     * @todo coder la méthode
-     * @brief Recoie un fichiers d'un cible
-     * @param idConnection la connection cible (voir connection() )
-     * @param chemin le chemin du fichier a enregistrer
-     * @param tempsMax le temps avant de timed out
-     * @return void
-     */
-    void recevoirFichier(int idConnection, std::string chemin, int tempsMax);
+    bool recevoirFichier(int idConnection, std::string chemin);
 
 private:
     /*
@@ -112,7 +106,7 @@ private:
     /*
      * @brief Initialisation de la structure sockaddr_in de WinSock2.h
      * @param addr Adresse internet de la cible. Trouvable dans _connections[].adresseSocket
-     * @param adresseCible Adresse IP de la destination
+     * @param adresseCible Adresse IP de la destination. Renseigner "aucune" pour une configuration serveur
      * @param port Port utilisé pour la communication
      * @return False pour un echec d'initialisation, true pour une réussite
      */
@@ -132,9 +126,11 @@ private:
     bool listenerInit(int port, std::string protocole);
 
     /*
-     * @brief le listener en lui même. Voir Client::listenerSpawnThread
+     * @brief Le listener en lui même. Voir Client::listenerSpawnThread
      */
-    void listener(int port, std::string protocole, std::mutex* locker, bool* stop, std::vector<std::string>* incomingDataQueue);
+    void listener(int port, std::string protocole, std::mutex* locker, bool* stop, std::vector<std::string>* dataQueue);
+
+    void wlog(std::string logMessage);
     
     // Le nombre maximal de connection simultané
     int const _maxConnection;

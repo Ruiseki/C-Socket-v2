@@ -56,71 +56,81 @@ struct Config configFile()
     return conf;
 }
 
-void affichage(mutex* locker, string ip, bool* stop, vector<string>* dataQueue)
+void checkMessage(bool* stop, mutex* locker, vector<string>* dataQueue)
 {
-    while(!*stop)
+    do
     {
         if(dataQueue->size() > 0)
         {
             locker->lock();
-            for(string content : *dataQueue)
+
+            for(string message : *dataQueue)
             {
-                cout << ip << " : " << content << endl;
+                cout << "-> " << message << endl;
             }
             dataQueue->clear();
+
             locker->unlock();
         }
-    }
+    } while (!*stop);
 }
 
-void connection(Client* client, string ip, int portListen, int port)
+void creerReseau(Client client, Config conf)
 {
-    system("cls");
-    cout << "Connection ..." << endl;
     mutex locker;
+    bool stop = false;
     vector<string> dataQueue;
-    dataQueue.clear();
-    bool stopListening = false;
+    thread listener = client.listenerSpawnThread(conf.portListen, "tcp", &locker, &stop, &dataQueue);
 
-    thread listener = client->listenerSpawnThread(portListen, "tcp", &locker, &stopListening, &dataQueue);
-    thread display(affichage, &locker, ip, &stopListening, &dataQueue);
+    cout << "Server has started on port " << conf.portListen << endl;
+    thread messageChecker(&checkMessage, &stop, &locker, &dataQueue);
 
-    int target = client->connection(ip, port, "tcp");
-    if(target < 0)
+    string entry;
+    do
     {
-        system("cls");
-        if(target == -1) cout << "CONNECTION TIMED OUT" << endl;
-        else cout << "CAN'T CONNECT TO THE ADRESSE - UNHANDLED ERROR" << endl;
-        this_thread::sleep_for(chrono::seconds(2));
-        stopListening = true;
-        listener.join();
-        display.join();
+        getline(cin, entry);
+        if(entry != "//close") ;// envoyer le message aux clients;
+
+    } while(entry != "//close");
+    stop = true;
+    messageChecker.join();
+    listener.join();
+}
+
+void connection(Client client, Config conf)
+{
+    cout << "Waiting to connect..." << endl;
+    int idConnection = client.connection(conf.addr, conf.portTalk, "tcp");
+
+    if(idConnection < 0)
+    {
+        cout << "Error ! (" << idConnection << ")" << endl;
+        std::this_thread::sleep_for(std::chrono::seconds(3));
         return;
     }
 
-    system("cls");
-    cout << "Connecter a " << ip << endl << endl;
+    cout << "Connected !" << endl;
 
-    string message;
+    string entry;
+    vector<string> dataQueue;
+    bool stop = false;
+    mutex locker;
+
+    thread messageChecker(&checkMessage, &stop, &locker, &dataQueue);
+
     do
     {
-        getline(cin, message);
-        if(message != "//close") client->envoyerText(target, message);
-        else
-        {
-            client->terminerConnection(target);
-            stopListening = true;
-        }
-    } while(!stopListening);
-    
-    cout << "Closing chat ..." << endl;
-    listener.join();
-    display.join();
+        getline(cin, entry);
+        if(entry != "//close") client.envoyerText(idConnection, entry);
+    } while (entry != "//close");
+    stop = true;
+    messageChecker.join();
+    client.terminerConnection(idConnection);
 }
 
 int main()
 {
-    Client client(5, 1024, 2048);
+    Client client;
     Config conf = configFile();
     bool exit = false;
     int selection;
@@ -135,11 +145,12 @@ int main()
         cout << "HOTE :" << endl;
         cout << "Port d'ecoute : " << conf.portListen << endl;
         cout << endl;
-        cout << "1: changer IP" << endl;
-        cout << "2: changer port" << endl;
-        cout << "3: changer port d'ecoute" << endl;
-        cout << "4: se connecter" << endl;
-        cout << "5: quitter" << endl;
+        cout << "1: creer un reseau" << endl;
+        cout << "2: se connecter" << endl << endl;
+        cout << "3: changer IP" << endl;
+        cout << "4: changer port" << endl;
+        cout << "5: changer port d'ecoute" << endl;
+        cout << "6: quitter" << endl;
 
         cin >> selection;
 
@@ -147,27 +158,31 @@ int main()
         {
         case 1:
             system("cls");
+            creerReseau(client, conf);
+            break;
+        case 2:
+            system("cls");
+            connection(client, conf);
+            break;
+        case 3:
+            system("cls");
             cout << "Nouvelle adresse : ";
             cin >> conf.addr;
             break;
-        case 2:
+        case 4:
             system("cls");
             cout << "Nouveau port : ";
             cin >> conf.portTalk;
             break;
-        case 3:
+        case 5:
             system("cls");
             cout << "Nouveau port : ";
             cin >> conf.portListen;
             break;
-        case 4:
-            connection(&client, conf.addr, conf.portListen, conf.portTalk);
-            break;
-        case 5:
+        case 6:
             system("cls");
             exit = true;
             break;
-        
         default:
             break;
         }
