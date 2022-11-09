@@ -140,6 +140,7 @@ private:
         sockaddr_in adresseSocket;
         bool estLibre = true;
         int sockfd = 0;
+        std::string nom;
     };
     // Tableau contenant les connections
     _connection* _connections;

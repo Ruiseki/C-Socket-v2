@@ -315,36 +315,8 @@ std::string Client::recevoirText(int idConnection)
 }
 
 
-/* ------------------------------------------------------------------------------------
-
-                    PROTOCOLE POUR L'ENVOIE ET LA RECEPTION DE DATA
-
-                    - envoie de la taille du buffer pour les données
-                    - envoie de la taille du fichier
-                    ( calcule du nombre de paquets de chaque côté )
-                    - envoie des donnée
-
------------------------------------------------------------------------------------- */
-
-
 bool Client::envoyerFichier(int idConnection, std::string chemin)
 {
-    /* std::ifstream lectureRessource(chemin.c_str(), std::ios::binary);
-
-    if(!lectureRessource) return false;
-
-    lectureRessource.seekg(std::ios::end);
-    int tailleRessource = lectureRessource.tellg();
-    lectureRessource.seekg(std::ios::beg);
-
-    buffer = new char(bufferSize);
-    int socketRecepteur = _connections[idConnection];
-
-    // envoie de la taille du fichier
-    send(socketRecepteur, , bufferSize, 0);
-    recv(socketRecepteur, buffer, bufferSize, 0);
-
-    delete buffer; */
     return true;
 }
 
