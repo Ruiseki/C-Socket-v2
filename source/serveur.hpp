@@ -1,17 +1,26 @@
 #ifndef SERVEUR_HPP
 #define SERVEUR_HPP
 
-#include <WinSock2.h>
 #include <string>
 #include <thread>
+#include <vector>
 #include <fstream>
+#include <mutex>
+#include <WinSock2.h>
 
-class Serveur
+#include "reseau.hpp"
+
+class Serveur : public Reseau
 {
-    public:
-        Serveur();
-        ~Serveur();
-    private:
+public:
+	Serveur();
+	~Serveur();
+
+	std::thread listenerSpawnThread(int port, std::string protocole);
+
+private:
+	void listener(int port, std::string protocole);
+
 };
 
 #endif

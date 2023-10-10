@@ -1,5 +1,5 @@
 *.code-workspace
 *.json
-/source/*.exe
-/source/*.conf
+*.conf
+*.txt
 .vs
