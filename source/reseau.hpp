@@ -19,11 +19,60 @@ public:
 	Reseau();
 	~Reseau();
 
-    virtual std::thread listenerSpawnThread(int port, std::string protocole) = 0;
+    /* 
+     * @brief Connection avec un client ou un serveur
+     * @param adresseCible Adresse IP de la destination
+     * @param port Port utilisé pour la communication
+     * @param protocole Protocole utilisé. tcp / udp
+     * @return Int. -1 timeout, 
+     * -2 erreur lors de l'initialisation de sockaddr_in, 
+     * -3 erreur lors de l'initialisation du socket, 
+     * -4 erreur lors de l'initialisation des WSA, 
+     * -5 quantité maximum de connections simulatées atteinte.
+     * Sinon, l'identifiant de la connection crée (entier supérieur ou égale à zéro)
+     */
+    int connection(std::string adresseCible, int port, std::string protocole);
+
+    /*
+     * @brief Termine une connection existante.
+     * @param identifiant de la connection (voir connection() )
+     * @return false si la connection n'existe pas, true si la connection existe
+     */
+    bool terminerConnection(int idConnexion);
+
+    /*
+     * @brief Permet d'écouter sur un port. Les données reçus seront pusher dans le vector dataQueue. Mettre le boolean stopListener a true permet de stoper le thread
+     * @param port Port d'écoute
+     * @param protocole Protocole utilisé. tcp / udp
+     * @return Le thread invoqué
+     */
+    std::thread listenerSpawnThread(int port, std::string protocole);
+
+    /*
+     * @brief Envoi une chaine de caractere a une connection
+     * @param idConnexion la connection cible (voir connection() )
+     * @param text La chaine de caractere a envoyer
+     * @return void
+     */
+    void envoyerText(int idConnexion, std::string text);
+
+    struct messageInfo
+    {
+        int idConnexion;
+        std::string message;
+        std::string nom;
+        std::string destinataire;
+    };
+    std::vector<messageInfo> dataQueue;
+    std::mutex locker;
+    bool stopListener = false;
 
 protected:
 
-    virtual void listener(int port, std::string protocole) = 0;
+    /*
+     * @brief Le listener serveur en lui même. Voir Client::listenerSpawnThread
+     */
+    void listener(int port, std::string protocole);
 
     /*
      * @brief Initialise les variable nessessaire pour l'écoute. Comme _socketEcoute et adresseSocketEcoute, bind() et listen().
@@ -54,36 +103,13 @@ protected:
     bool initSocket(std::string protocole, int& sockfd);
 
     /*
-     * @brief Envoi une chaine de caractere a une connection
-     * @param idConnection la connection cible (voir connection() )
-     * @param text La chaine de caractere a envoyer
-     * @return void
-     */
-    void envoyerText(int idConnection, std::string text);
-
-    /*
-     * @brief Envoi une chaine de caractere a tous les clients stocker dans connexions[]
-     * @param text La chaine de caractere a envoyer
-     * @return void
-     */
-    void envoyerText(std::string text);
-
-    /*
      * @brief donne un nom a une connection
-     * @param idConnection la connection cible (voir connection() )
+     * @param idConnexion la connection cible (voir connection() )
      * @param nom le nom de la connection
      */
-    void setNomConnection(int idConnection, std::string nom);
+    void setNomConnection(int idConnexion, std::string nom);
 
     void wlog(std::string logMessage);
-
-    struct messageInfo
-    {
-        int idConnection;
-        std::string nom;
-        std::string message;
-    };
-    std::vector<messageInfo> dataQueue;
 
     int const maxConnexion;
     struct connexion
@@ -96,8 +122,6 @@ protected:
     connexion* connexions;
     char* buffer, * dataBuffer;
     int bufferSize, dataBufferSize;
-    std::mutex locker;
-    bool stopListener = false;
 
     WSADATA wsaData;
     // fdset est une liste de file descriptor. Il permet de manipuler ces derniers

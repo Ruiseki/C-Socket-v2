@@ -60,7 +60,7 @@ struct Config configFile()
     return conf;
 }
 
-void envoyerFichier(Client* client, int idConnection)
+void envoyerFichier(Client* client, int idConnexion)
 {
     ifstream fichier;
     string cheminInput, vraiChemin, nomFichier;
@@ -82,19 +82,19 @@ void envoyerFichier(Client* client, int idConnection)
         fichier.open(vraiChemin);
     } while(!fichier);
     fichier.close();
-    client->envoyerText(idConnection, nomFichier);
-    client->envoyerFichier(idConnection, vraiChemin);
+    client->envoyerText(idConnexion, nomFichier);
+    client->envoyerFichier(idConnexion, vraiChemin);
     system("cls");
     cout << "[ done ]" << endl << endl;
 }
 
-void recevoirFichier(Client* client, int idConnection)
+void recevoirFichier(Client* client, int idConnexion)
 {
     system("cls");
     cout << "[ recieving file ... ]" << endl;
-    string nomFichier = client->recevoirText(idConnection, );
+    string nomFichier = client->recevoirText(idConnexion, );
     cout << "[ downloading ... ]" << endl;
-    client->recevoirFichier(idConnection, "./"+nomFichier);
+    client->recevoirFichier(idConnexion, "./"+nomFichier);
     system("cls");
     cout << "[ done ]" << endl << endl;
 }
@@ -118,10 +118,10 @@ void recupererMessage(Client* client, vector<Client::messageInfo>* dataQueue, bo
                 {
                     if(element.message == "//recv")
                     {
-                        recevoirFichier(client, element.idConnection);
+                        recevoirFichier(client, element.idConnexion);
                         dataQueue->clear();
                     }
-                    else if(element.message.substr(0, 7) == "//name:") client->setNomConnection(element.idConnection, element.message.substr(7, element.message.size()));
+                    else if(element.message.substr(0, 7) == "//name:") client->setNomConnection(element.idConnexion, element.message.substr(7, element.message.size()));
                 }
                 else cout << element.nom << " -> " << element.message << endl;
             }
@@ -141,12 +141,12 @@ void connection(Client* client, int port, int portListen, string target, string 
 
     thread listener = client->listenerSpawnThread(portListen, "tcp", &locker, &stop, &dataQueue);
 
-    int idConnection = client->connection(target, port, "tcp");
+    int idConnexion = client->connection(target, port, "tcp");
 
-    if(idConnection < 0)
+    if(idConnexion < 0)
     {
         stop = true;
-        cout << "Erreur (" << idConnection << ")" << endl;
+        cout << "Erreur (" << idConnexion << ")" << endl;
         listener.join();
         this_thread::sleep_for(chrono::seconds(3));
         return;
@@ -163,18 +163,18 @@ void connection(Client* client, int port, int portListen, string target, string 
         getline(cin, input);
         if(input == "//close")
         {
-            client->terminerConnection(idConnection);
+            client->terminerConnection(idConnexion);
             stop = true;
         }
         else if(input == "//send")
         {
-            client->envoyerText(idConnection, "//recv");
-            envoyerFichier(client, idConnection);
+            client->envoyerText(idConnexion, "//recv");
+            envoyerFichier(client, idConnexion);
         }
         else
         {
             if(input.substr(0, 2) == "//") input.insert(input.begin(), '-');
-            client->envoyerText(idConnection, input);
+            client->envoyerText(idConnexion, input);
         }
     } while(!stop);
 
