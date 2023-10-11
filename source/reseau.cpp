@@ -7,17 +7,17 @@
 
 #include "reseau.hpp"
 
-Reseau::Reseau(int maxConnection, int tailleBuffer, int tailleBufferDonnee) : maxConnexion(maxConnection), bufferSize(tailleBuffer), dataBufferSize(tailleBufferDonnee)
+Reseau::Reseau(int maxConnection, int tailleBuffer) : maxConnexion(maxConnection), bufferSize(tailleBuffer)
 {
     connexions = new connexion[maxConnexion];
 }
 
-Reseau::Reseau(int maxConnection) : Reseau(maxConnection, 128, 1024)
+Reseau::Reseau(int maxConnection) : Reseau(maxConnection, 128)
 {
     
 }
 
-Reseau::Reseau() : Reseau(4, 128, 1024)
+Reseau::Reseau() : Reseau(4, 128)
 { }
 
 Reseau::~Reseau()
@@ -191,11 +191,7 @@ void Reseau::listener(int port, std::string protocole)
                     buffer[bytesNumber] = '\0';
                     // les données sont envoyées dans la file d'attente
                     locker.lock();
-                    messageInfo info;
-                    info.idConnexion = i;
-                    info.message = (std::string)buffer;
-                    info.nom = connexions[i].nom;
-                    dataQueue.push_back( info );
+                    dataQueue.push_back( (std::string)buffer );
                     locker.unlock();
                 }
                 // Quelque chose ne se passe pas comme prévus
@@ -232,7 +228,7 @@ bool Reseau::listenerInit(int port, std::string protocole)
     int errorCode = bind(_sockfdEcoute, (sockaddr*)&adresseSocketEcoute, sizeof(adresseSocketEcoute));
     if( errorCode == SOCKET_ERROR )
     {
-        std::cout << "BINDING ERROR : " << std::endl << WSAGetLastError() << std::endl;
+        std::cout << "BINDING ERROR : " << WSAGetLastError() << std::endl << "The port may be occupied by another program" << std::endl;
         return false;
     }
 
@@ -310,11 +306,12 @@ void Reseau::envoyerText(int idConnexion, std::string text)
     }
 }
 
-void Reseau::setNomConnection(int idConnexion, std::string nom)
+void Reseau::envoyerBinaire(int idConnexion, char donnees[], int tailleBufferDonnees)
 {
-    if(!connexions[idConnexion].estLibre)
+    if(idConnexion < 0 || idConnexion > maxConnexion) return;
+    else if(!connexions[idConnexion].estLibre)
     {
-        connexions[idConnexion].nom = nom;
+        send(connexions[idConnexion].sockfd, donnees, tailleBufferDonnees, 0);
     }
 }
 

@@ -14,7 +14,7 @@ public:
      * @param maxConnection Defini le nombre maximum de connection simultané. Par défaut 4.
      * @return Détruit le l'objet si la variable WSA n'a pas pus être initialisé.
      */
-    Reseau(int maxConnection, int tailleBuffer, int tailleBufferDonnee);
+    Reseau(int maxConnection, int tailleBuffer);
     Reseau(int maxConnection);
 	Reseau();
 	~Reseau();
@@ -56,14 +56,12 @@ public:
      */
     void envoyerText(int idConnexion, std::string text);
 
-    struct messageInfo
-    {
-        int idConnexion;
-        std::string message;
-        std::string nom;
-        std::string destinataire;
-    };
-    std::vector<messageInfo> dataQueue;
+    /*
+     *
+     */
+    void envoyerBinaire(int idConnexion, char donnees[], int tailleBufferDonnees);
+
+    std::vector<std::string> dataQueue;
     std::mutex locker;
     bool stopListener = false;
 
@@ -102,13 +100,6 @@ protected:
      */
     bool initSocket(std::string protocole, int& sockfd);
 
-    /*
-     * @brief donne un nom a une connection
-     * @param idConnexion la connection cible (voir connection() )
-     * @param nom le nom de la connection
-     */
-    void setNomConnection(int idConnexion, std::string nom);
-
     void wlog(std::string logMessage);
 
     int const maxConnexion;
@@ -117,11 +108,10 @@ protected:
         sockaddr_in adresseSocket;
         bool estLibre = true;
         int sockfd = 0;
-        std::string nom;
     };
     connexion* connexions;
-    char* buffer, * dataBuffer;
-    int bufferSize, dataBufferSize;
+    char* buffer;
+    int bufferSize;
 
     WSADATA wsaData;
     // fdset est une liste de file descriptor. Il permet de manipuler ces derniers
