@@ -82,7 +82,7 @@ void envoyerFichier(Client* client, int idConnexion)
         fichier.open(vraiChemin);
     } while(!fichier);
     fichier.close();
-    client->envoyerText(idConnexion, nomFichier);
+    client->envoyer(idConnexion, nomFichier);
     client->envoyerFichier(idConnexion, vraiChemin);
     system("cls");
     cout << "[ done ]" << endl << endl;
@@ -155,7 +155,7 @@ void connection(Client* client, int port, int portListen, string target, string 
     cout << "Connection successful" << endl;
 
     thread message(recupererMessage, client, &dataQueue, &stop, &locker);
-    client->envoyerText("//name:"+username);
+    client->envoyer("//name:"+username);
     cin.ignore();
     string input;
     do
@@ -168,13 +168,13 @@ void connection(Client* client, int port, int portListen, string target, string 
         }
         else if(input == "//send")
         {
-            client->envoyerText(idConnexion, "//recv");
+            client->envoyer(idConnexion, "//recv");
             envoyerFichier(client, idConnexion);
         }
         else
         {
             if(input.substr(0, 2) == "//") input.insert(input.begin(), '-');
-            client->envoyerText(idConnexion, input);
+            client->envoyer(idConnexion, input);
         }
     } while(!stop);
 

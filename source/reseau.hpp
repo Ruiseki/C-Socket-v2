@@ -44,9 +44,16 @@ public:
      * @brief Permet d'écouter sur un port. Les données reçus seront pusher dans le vector dataQueue. Mettre le boolean stopListener a true permet de stoper le thread
      * @param port Port d'écoute
      * @param protocole Protocole utilisé. tcp / udp
-     * @return Le thread invoqué
      */
-    std::thread listenerSpawnThread(int port, std::string protocole);
+    void observateurSync(int port, std::string protocole);
+    
+    /*
+     * @brief Version threader de l'observateur
+     * @param port Port d'écoute
+     * @param protocole Protocole utilisé. tcp / udp
+     * @return le thread invoqué
+     */
+    std::thread observateur(int port, std::string protocole);
 
     /*
      * @brief Envoi une chaine de caractere a une connection
@@ -54,23 +61,22 @@ public:
      * @param text La chaine de caractere a envoyer
      * @return void
      */
-    void envoyerText(int idConnexion, std::string text);
+    void envoyer(int idConnexion, std::string text);
 
     /*
      *
      */
     void envoyerBinaire(int idConnexion, char donnees[], int tailleBufferDonnees);
 
+    // si besoin de plus d'info, faire un vector de struct
+
+    std::vector<int> connexionsActives;
     std::vector<std::string> dataQueue;
     std::mutex locker;
     bool stopListener = false;
 
 protected:
 
-    /*
-     * @brief Le listener serveur en lui même. Voir Client::listenerSpawnThread
-     */
-    void listener(int port, std::string protocole);
 
     /*
      * @brief Initialise les variable nessessaire pour l'écoute. Comme _socketEcoute et adresseSocketEcoute, bind() et listen().

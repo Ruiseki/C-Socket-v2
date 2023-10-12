@@ -7,21 +7,37 @@
 #include <windows.h>
 
 #include "reseau.hpp"
+#include "chat.hpp"
 
-void lireMessage(Reseau* network)
+/*
+	TO DO
+
+	- Le programme plante en mode client quand on quitte
+	- Le programme en mode client se comporte étrangement quand un message arrive
+			et qu'on est en train d'écrire
+
+*/
+
+void lireServeur(Reseau* serveur)
 {
-	while(!network->stopListener)
+	while(!serveur->stopListener)
 	{
-		if(network->dataQueue.size() > 0)
+		if(serveur->dataQueue.size() > 0)
 		{
-			for(std::string message : network->dataQueue)
+			for(std::string message : serveur->dataQueue)
 			{
 				std::cout << message << std::endl;
+				for(int id : serveur->connexionsActives)
+				{
+					serveur->envoyer(id, message);
+				}
 			}
-			network->locker.lock();
-			network->dataQueue.clear();
-			network->locker.unlock();
+			serveur->locker.lock();
+			serveur->dataQueue.clear();
+			serveur->locker.unlock();
+
 		}
+		std::this_thread::sleep_for(std::chrono::milliseconds(1));
 	}
 }
 
@@ -29,11 +45,13 @@ int lancerClient(Reseau* client)
 {
 	// configuration
 	std::string adressedef = "92.95.32.114", portdef = "55555", portEcoutedef = "55556";
-	std::string adresse, portstr, portEcoutestr;
+	std::string pseudo = "Unknown", adresse, portstr, portEcoutestr;
 	int port, portEcoute;
 	system("cls");
 
 	std::cin.ignore();
+	std::cout << "Pseudo : ";
+	std::getline(std::cin, pseudo);
 	std::cout << "Adresse (" << adressedef << ") : ";
 	std::getline(std::cin, adresse);
 	std::cout << "Port destination (" << portdef << ") : ";
@@ -57,24 +75,40 @@ int lancerClient(Reseau* client)
 	}
 	system("cls");
 	std::cout << "Connecter" << std::endl << std::endl;
+	system("cls");
 
 	// chat
-	std::thread tacheObservateur = client->listenerSpawnThread(portEcoute, "tcp");
-	std::thread tacheLireMessage(lireMessage, client);
-
+	HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 	std::string message;
+
+	std::thread tacheObservateur = client->observateur(portEcoute, "tcp");
+	std::thread tacheArrierePlan(backgroundWork, hConsole, &client->dataQueue, &client->stopListener);
+
 	do
 	{
-		std::getline(std::cin, message);
+		updateFrame(hConsole, &client->dataQueue);
+
+        std::getline(std::cin, message);
+        moveCursor(hConsole, 0, getConsoleHeight(hConsole) - 1);
+        std::cout << "\033[2K\r";
+
 		if(message != ">quit")
-			client->envoyerText(id, message);
+		{
+			message = pseudo + " : " + message;
+			client->envoyer(id, message);
+		}
+
 	} while( message != ">quit" );
 
 	client->terminerConnection(id);
 	client->stopListener = true;
 
-	tacheLireMessage.join();
+	system("cls");
+
+	std::cout << "Arret des threads ..." << std::endl;
+	tacheArrierePlan.join();
 	tacheObservateur.join();
+	std::cout << "Threads terminer" << std::endl;
 
 	system("cls");
 	return 0;
@@ -83,15 +117,15 @@ int lancerClient(Reseau* client)
 int lancerServeur(Reseau* serveur)
 {
 	system("cls");
-	std::thread tacheObservateur = serveur->listenerSpawnThread(55555, "tcp");
-	std::cout << "Serveur demarrer sur le port 55555" << std::endl << "Appuyez sur 'q' pour quitter le mode serveur" << std::endl;
-	std::thread tacheLireMessage(lireMessage, serveur);
+	std::thread tacheObservateur = serveur->observateur(55555, "tcp");
+	std::cout << "Serveur demarrer sur le port 55555" << std::endl << "Appuyez sur 'q' pour quitter le mode serveur" << std::endl << std::endl;
+	std::thread tacheTraitementMessage(lireServeur, serveur);
 
 	while(!((GetKeyState('Q') & 0x8000) && GetConsoleWindow() == GetForegroundWindow()))
 	{ }
 
 	serveur->stopListener = true;
-	tacheLireMessage.join();
+	tacheTraitementMessage.join();
 	tacheObservateur.join();
 	system("cls");
 	std::cin.ignore();
@@ -104,7 +138,7 @@ int main()
 	Reseau serveur;
 	int selection, returnCode = 0;
 	system("cls");
-	
+
 	do
 	{
 		std::cout << "1: Lancer le client" << std::endl << "2: Lancer le serveur" << std::endl << "3: Quitter" << std::endl;

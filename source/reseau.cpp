@@ -98,7 +98,7 @@ bool Reseau::terminerConnection(int idConnexion)
     }
 }
 
-void Reseau::listener(int port, std::string protocole)
+void Reseau::observateurSync(int port, std::string protocole)
 {
     // Initialisation des variable, bind() puis listen().
     if( !this->listenerInit(port, protocole) )
@@ -166,6 +166,7 @@ void Reseau::listener(int port, std::string protocole)
             {
                 connexions[caseLibre].estLibre = false;
                 connexions[caseLibre].sockfd = new_socket;
+                connexionsActives.push_back(caseLibre);
             }
         }
 
@@ -184,6 +185,7 @@ void Reseau::listener(int port, std::string protocole)
                 {
                     connexions[i].estLibre = true;
                     connexions[i].sockfd = 0;
+                    connexionsActives.erase(connexionsActives.begin() + i);
                 }
                 // Reception des données
                 else if(bytesNumber > 0)
@@ -199,6 +201,7 @@ void Reseau::listener(int port, std::string protocole)
                 {
                     connexions[i].estLibre = true;
                     connexions[i].sockfd = 0;
+                    connexionsActives.erase(connexionsActives.begin() + i);
                 }
 
                 // déallocation du buffer
@@ -210,10 +213,10 @@ void Reseau::listener(int port, std::string protocole)
     WSACleanup();
 }
 
-std::thread Reseau::listenerSpawnThread(int port, std::string protocole)
+std::thread Reseau::observateur(int port, std::string protocole)
 {
     this->wlog("---- SPAWNING LISTENER THREAD");
-    return std::thread(&listener, this, port, protocole);
+    return std::thread(&observateurSync, this, port, protocole);
 }
 
 bool Reseau::listenerInit(int port, std::string protocole)
@@ -297,7 +300,7 @@ bool Reseau::initSocket(std::string protocole, int &sockfd)
     return true;
 }
 
-void Reseau::envoyerText(int idConnexion, std::string text)
+void Reseau::envoyer(int idConnexion, std::string text)
 {
     if(idConnexion < 0 || idConnexion > maxConnexion) return;
     else if(!connexions[idConnexion].estLibre)
