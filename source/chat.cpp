@@ -27,7 +27,7 @@ void moveCursor(HANDLE hConsole, int x, int y)
 void updateFrame(HANDLE hConsole, vector<string>* messages)
 {
     moveCursor(hConsole, 0, 0);
-    SetConsoleTextAttribute(hConsole, FOREGROUND_RED);
+    SetConsoleTextAttribute(hConsole, FOREGROUND_RED | FOREGROUND_GREEN);
     cout << "Type \">quit\" to exit";
     SetConsoleTextAttribute(hConsole, FOREGROUND_BLUE | FOREGROUND_INTENSITY);
     moveCursor(hConsole, 0, 1);

@@ -84,11 +84,11 @@ bool Reseau::terminerConnection(int idConnexion)
     }
     else if(!connexions[idConnexion].estLibre)
     {
+        dataQueue.clear();
         shutdown(connexions[idConnexion].sockfd, 2);
         closesocket(connexions[idConnexion].sockfd);
         connexions[idConnexion].estLibre = true;
         WSACleanup();
-        this->wlog("DONE");
         return true;
     }
     else
