@@ -44,8 +44,9 @@ public:
      * @brief Permet d'écouter sur un port. Les données reçus seront pusher dans le vector dataQueue. Mettre le boolean stopListener a true permet de stoper le thread
      * @param port Port d'écoute
      * @param protocole Protocole utilisé. tcp / udp
+     * @param autoriserConnexion autorise une connexion. False si utilisation d'un client et true pour l'autorisation d'un serveur par exemple
      */
-    void observateurSync(int port, std::string protocole);
+    void observateurSync(int port, std::string protocole, bool autoriserConnexion);
     
     /*
      * @brief Version threader de l'observateur
@@ -53,7 +54,7 @@ public:
      * @param protocole Protocole utilisé. tcp / udp
      * @return le thread invoqué
      */
-    std::thread observateur(int port, std::string protocole);
+    std::thread observateur(int port, std::string protocole, bool autoriserConnexion);
 
     /*
      * @brief Envoi une chaine de caractere a une connection

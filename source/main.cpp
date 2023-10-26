@@ -12,9 +12,10 @@
 /*
 	TO DO
 
-	- Le programme plante en mode client quand on quitte
 	- Le programme en mode client se comporte étrangement quand un message arrive
-			et qu'on est en train d'écrire
+		et qu'on est en train d'écrire
+	- Si le serveur plante pendant que les clients sont encore co, seg fault
+	- Le serveur ne se quitte pas avec tous les terminaux
 
 */
 
@@ -79,6 +80,7 @@ int lancerClient(Reseau* client, HANDLE hConsole)
 	int id = client->connection(adresse, port, "tcp");
 	if(id < 0)
 	{
+		system("cls");
 		SetConsoleTextAttribute(hConsole, FOREGROUND_RED);
 		std::cout << "Connexion impossible\nErreur " << id << std::endl << std::endl;
 		return -1;
@@ -90,7 +92,8 @@ int lancerClient(Reseau* client, HANDLE hConsole)
 	// chat
 	std::string message;
 
-	std::thread tacheObservateur = client->observateur(portEcoute, "tcp");
+	client->stopListener = false;
+	std::thread tacheObservateur = client->observateur(portEcoute, "tcp", false);
 	std::thread tacheArrierePlan(backgroundWork, hConsole, &client->dataQueue, &client->stopListener);
 
 	do
@@ -132,7 +135,8 @@ int lancerClient(Reseau* client, HANDLE hConsole)
 int lancerServeur(Reseau* serveur, HANDLE hConsole)
 {
 	system("cls");
-	std::thread tacheObservateur = serveur->observateur(55555, "tcp");
+	serveur->stopListener = false;
+	std::thread tacheObservateur = serveur->observateur(55555, "tcp", true);
 	SetConsoleTextAttribute(hConsole, FOREGROUND_BLUE | FOREGROUND_INTENSITY);
 	std::cout << "Serveur demarrer sur le port 55555" << std::endl;
 	SetConsoleTextAttribute(hConsole, FOREGROUND_RED | FOREGROUND_GREEN);
@@ -170,7 +174,7 @@ int main()
 		std::cout << "3: Quitter" << std::endl;
 		SetConsoleTextAttribute(hConsole, FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_INTENSITY);
 
-		std::cin >> selection;
+		// besoin de check si l'input est autre chose qu'un nombre
 		switch (selection)
 		{
 		case 1:

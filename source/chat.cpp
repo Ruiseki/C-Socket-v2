@@ -16,6 +16,13 @@ int getConsoleHeight(HANDLE hConsole)
     return csbi.srWindow.Bottom - csbi.srWindow.Top;
 }
 
+COORD getConsoleCursorPosition(HANDLE hConsole)
+{
+    CONSOLE_SCREEN_BUFFER_INFO csbi;
+    GetConsoleScreenBufferInfo(hConsole, &csbi);
+    return csbi.dwCursorPosition;
+}
+
 void moveCursor(HANDLE hConsole, int x, int y)
 {
     COORD coord;
@@ -59,16 +66,23 @@ void backgroundWork(HANDLE hConsole, vector<string>* messages, bool* stop)
     {
         if( currentHeight != getConsoleHeight(hConsole))
         {
+            COORD currentCursorPos = getConsoleCursorPosition(hConsole);
             system("cls");
-            currentHeight = getConsoleHeight(hConsole);
             updateFrame(hConsole, messages);
+            if (currentHeight < getConsoleHeight(hConsole))
+                moveCursor(hConsole, currentCursorPos.X, currentCursorPos.Y + 1);
+            else
+                moveCursor(hConsole, currentCursorPos.X, currentCursorPos.Y - 1);
             SetConsoleTextAttribute(hConsole, FOREGROUND_BLUE | FOREGROUND_GREEN | FOREGROUND_RED | FOREGROUND_INTENSITY);
+            currentHeight = getConsoleHeight(hConsole);
         }
 
         if(messages->size() > oldSize)
 		{
             oldSize = messages->size();
+            COORD currentCursorPos = getConsoleCursorPosition(hConsole);
 			updateFrame(hConsole, messages);
+            moveCursor(hConsole, currentCursorPos.X, currentCursorPos.Y);
 		}
         this_thread::sleep_for(chrono::milliseconds(1)); // drain to much ressources otherwise
     }

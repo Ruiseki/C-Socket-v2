@@ -98,7 +98,7 @@ bool Reseau::terminerConnection(int idConnexion)
     }
 }
 
-void Reseau::observateurSync(int port, std::string protocole)
+void Reseau::observateurSync(int port, std::string protocole, bool autoriserConnexion)
 {
     // Initialisation des variable, bind() puis listen().
     if( !this->listenerInit(port, protocole) )
@@ -140,7 +140,7 @@ void Reseau::observateurSync(int port, std::string protocole)
         select(max_socket + 1, &fdset, NULL, NULL, &tv);
 
         // On regarde si il y a de l'activité sur le socket seveur. Si oui, c'est forcément une demande de connection entrante
-        if(FD_ISSET(_sockfdEcoute, &fdset))
+        if(FD_ISSET(_sockfdEcoute, &fdset) && autoriserConnexion)
         {
             int adresseLongueur = sizeof(adresseSocketEcoute);
             int new_socket = accept(_sockfdEcoute, (sockaddr*)&adresseSocketEcoute, &adresseLongueur);
@@ -213,10 +213,10 @@ void Reseau::observateurSync(int port, std::string protocole)
     WSACleanup();
 }
 
-std::thread Reseau::observateur(int port, std::string protocole)
+std::thread Reseau::observateur(int port, std::string protocole, bool autoriserConnexion)
 {
     this->wlog("---- SPAWNING LISTENER THREAD");
-    return std::thread(&observateurSync, this, port, protocole);
+    return std::thread(&observateurSync, this, port, protocole, autoriserConnexion);
 }
 
 bool Reseau::listenerInit(int port, std::string protocole)
