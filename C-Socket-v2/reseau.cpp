@@ -231,6 +231,7 @@ void Reseau::operationObservateurThread(int port, std::string protocole, bool au
         // pas besoin de sleep_for() car le timeout de select ralenti déjà la boucle
     }
 
+    observateurInit = false;
     closesocket(_sockfdEcoute);
     WSACleanup();
 }
