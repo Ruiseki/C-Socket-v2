@@ -1,0 +1,13 @@
+﻿  C-Socket-v2.cpp
+  chat.cpp
+D:\code\C-Socket-v2\C-Socket-v2\chat.cpp(43,15): warning C4267: 'initializing': conversion from 'size_t' to 'int', possible loss of data
+D:\code\C-Socket-v2\C-Socket-v2\chat.cpp(82,37): warning C4267: '=': conversion from 'size_t' to 'int', possible loss of data
+  reseau.cpp
+D:\code\C-Socket-v2\C-Socket-v2\reseau.cpp(149,24): warning C4244: 'initializing': conversion from 'SOCKET' to 'int', possible loss of data
+D:\code\C-Socket-v2\C-Socket-v2\reseau.cpp(309,24): warning C4244: '=': conversion from 'SOCKET' to 'int', possible loss of data
+D:\code\C-Socket-v2\C-Socket-v2\reseau.cpp(327,69): warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data
+  Generating code
+  Previous IPDB not found, fall back to full compilation.
+  All 511 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
+  Finished generating code
+  C-Socket-v2.vcxproj -> D:\code\C-Socket-v2\x64\Release\C-Socket-v2.exe
