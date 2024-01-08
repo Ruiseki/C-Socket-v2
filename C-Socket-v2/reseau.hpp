@@ -5,7 +5,6 @@
 #include <WS2tcpip.h>
 #include <vector>
 #include <string>
-#include <mutex>
 #include <thread>
 
 class Reseau
@@ -47,7 +46,7 @@ public:
      * @param protocole Protocole utilisé. tcp / udp
      * @param autoriserConnexion autorise une connexion. False si utilisation d'un client et true pour l'autorisation d'un serveur par exemple
      */
-    void observateur(int port, std::string protocole, bool autoriserConnexion);
+    void observateur(int port, std::string protocole, bool autoriserConnexion, void* callback(std::string));
 
     /*
      * @brief Version threader de l'observateur. Metter la variable stopObservateur pour arreter le thread
@@ -55,12 +54,12 @@ public:
      * @param protocole Protocole utilisé. tcp / udp
      * @return le thread invoqué
      */
-    std::thread observateurThread(int port, std::string protocole, bool autoriserConnexion);
+    std::thread observateurThread(int port, std::string protocole, bool autoriserConnexion, void* callback(std::string));
 
     /*
      * @brief boucle l'observateur pour le thread 
      */
-    void operationObservateurThread(int port, std::string protocole, bool autoriserConnexion);
+    void operationObservateurThread(int port, std::string protocole, bool autoriserConnexion, void* callback(std::string));
 
     /*
      * @brief Envoi une chaine de caractere a une connection
@@ -78,8 +77,6 @@ public:
     // si besoin de plus d'info, faire un vector de struct
 
     std::vector<int> connexionsActives;
-    std::vector<std::string> dataQueue;
-    std::mutex locker;
     bool stopObservateur = false;
 
 protected:

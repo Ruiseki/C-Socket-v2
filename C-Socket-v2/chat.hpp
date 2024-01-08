@@ -5,12 +5,26 @@
 #include <string>
 #include <windows.h>
 
-int getConsoleHeight(HANDLE hConsole);
+#include "reseau.hpp"
 
-void moveCursor(HANDLE hConsole, int x, int y);
+int getConsoleHeight();
 
-void updateFrame(HANDLE hConsole, std::vector<std::string>* messages);
+COORD getConsoleCursorPosition();
 
-void backgroundWork(HANDLE hConsole, std::vector<std::string>* messages, bool* stop);
+void moveCursor(int x, int y);
+
+void updateFrame();
+
+void gestionTailleFenetre(bool* stop);
+
+void* lireServeur(std::string message);
+
+void* recepetionMessageClient(std::string message);
+
+int lancerClient();
+
+int lancerServeur();
+
+int mainMenu();
 
 #endif

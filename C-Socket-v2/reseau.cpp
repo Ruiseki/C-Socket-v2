@@ -61,7 +61,11 @@ int Reseau::connection(std::string adresseServeur, int port, std::string protoco
         else this->wlog("DONE");
     }
 
-    if (codeErreur == 0) return caseLibre;
+    if (codeErreur == 0)
+    {
+        connexionsActives.push_back(caseLibre);
+        return caseLibre;
+    }
     else
     {
         WSACleanup();
@@ -87,7 +91,6 @@ bool Reseau::terminerConnection(int idConnexion)
     }
     else if (!connexions[idConnexion].estLibre)
     {
-        dataQueue.clear();
         shutdown(connexions[idConnexion].sockfd, 2);
         closesocket(connexions[idConnexion].sockfd);
         connexions[idConnexion].estLibre = true;
@@ -101,7 +104,7 @@ bool Reseau::terminerConnection(int idConnexion)
     }
 }
 
-void Reseau::observateur(int port, std::string protocole, bool autoriserConnexion)
+void Reseau::observateur(int port, std::string protocole, bool autoriserConnexion, void* callback(std::string))
 {
     // Initialisation des variable, bind() puis listen().
     if (!observateurInit)
@@ -197,11 +200,10 @@ void Reseau::observateur(int port, std::string protocole, bool autoriserConnexio
             {
                 // les données sont envoyées dans la file d'attente
                 if(bytesNumber <= bufferSize) buffer[bytesNumber] = '\0';
-                locker.lock();
-                dataQueue.push_back((std::string)buffer);
-                locker.unlock();
+                // callback
+                callback((std::string)buffer);
             }
-            // Quelque chose ne se passe pas comme prévus
+            // -1 Signification ?
             else
             {
                 connexions[i].estLibre = true;
@@ -217,17 +219,17 @@ void Reseau::observateur(int port, std::string protocole, bool autoriserConnexio
     // WSACleanup();
 }
 
-std::thread Reseau::observateurThread(int port, std::string protocole, bool autoriserConnexion)
+std::thread Reseau::observateurThread(int port, std::string protocole, bool autoriserConnexion, void* callback(std::string))
 {
     this->wlog("---- SPAWNING LISTENER THREAD");
-    return std::thread(&Reseau::operationObservateurThread, this, port, protocole, autoriserConnexion);
+    return std::thread(&Reseau::operationObservateurThread, this, port, protocole, autoriserConnexion, callback);
 }
 
-void Reseau::operationObservateurThread(int port, std::string protocole, bool autoriserConnexion)
+void Reseau::operationObservateurThread(int port, std::string protocole, bool autoriserConnexion, void* callback(std::string))
 {
     while (!stopObservateur)
     {
-        observateur(port, protocole, autoriserConnexion);
+        observateur(port, protocole, autoriserConnexion, callback);
         // pas besoin de sleep_for() car le timeout de select ralenti déjà la boucle
     }
 
